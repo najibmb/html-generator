@@ -550,7 +550,7 @@ def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
         
         // Safety lock clamp bounds to prevent breaking viewport coordinate projection matrix
         if (zoomLevel < 0.3) zoomLevel = 0.3;
-        if (zoomLevel > 50.0) zoomLevel = 50.0;
+        if (zoomLevel > 2500.0) zoomLevel = 2500.0;
         
         // Adjust system layout offset variables dynamically so zoom targets center axis viewport
         const centerX = canvas.width / 2;
