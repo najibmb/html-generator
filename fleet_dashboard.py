@@ -395,7 +395,7 @@ def generate_html_output(data_records, output_filename="dashboard.html"):
             if (diffMins < 60) return `${{diffMins}} minute${{diffMins > 1 ? 's' : ''}} ago`;
             if (diffHours < 24) return `${{diffHours}} hour${{diffHours > 1 ? 's' : ''}} ago`;
             return `${{diffDays}} day${{diffDays > 1 ? 's' : ''}} ago`;
-        } catch (e) {{
+        }} catch (e) {{
             return isoStr;
         }}
     }}
