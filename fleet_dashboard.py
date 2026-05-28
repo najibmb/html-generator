@@ -78,6 +78,16 @@ def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
     Generates a single, standalone static HTML page pre-baked with the coordinates.
     Overwrites any existing dashboard.html file directly on execution.
     """
+    # Calculate Fleet Bounding Center Points to initialize map placement cleanly
+    if data_records:
+        lats = [r["lat"] for r in data_records]
+        lons = [r["lon"] for r in data_records]
+        center_lat = (max(lats) + min(lats)) / 2.0
+        center_lon = (max(lons) + min(lons)) / 2.0
+    else:
+        center_lat = 0.0
+        center_lon = 0.0
+
     # Serialize data cleanly to standard JSON format embedded directly inside the template
     json_data_array = json.dumps(data_records, indent=2)
 
@@ -130,7 +140,10 @@ def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
         }}
         canvas {{
             display: block;
-            cursor: default;
+            cursor: grab;
+        }}
+        canvas:active {{
+            cursor: grabbing;
         }}
         .zoom-controls {{
             position: absolute;
@@ -159,6 +172,12 @@ def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
         .zoom-btn:hover {{
             background: #f1f5f9;
             color: #0f172a;
+        }}
+        .map-hint {{
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 8px;
+            display: block;
         }}
         /* SECTIONS 2 & 3: Layout Components */
         .tables-grid {{
@@ -251,6 +270,7 @@ def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
                 <div class="zoom-btn" id="zoom-out-btn" title="Zoom Out">−</div>
             </div>
         </div>
+        <span class="map-hint">💡 Use <strong>Click & Drag</strong> to pan around the map matrix. Hover over diamonds to check device IDs.</span>
     </section>
 
     <div class="tables-grid">
@@ -293,11 +313,20 @@ def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
     // Embed the payload directly using identical column structures
     const trackingData = {json_data_array};
 
+    // Pre-calculated coordinates from python compiler to automatically center fleet points
+    const initialCenterLat = {center_lat};
+    const initialCenterLon = {center_lon};
+
     // Viewport matrix management state tracking variables
     let zoomLevel = 1.0;
     let offsetX = 0;
     let offsetY = 0;
     let hoveredPoint = null;
+
+    // Handles to maintain cursor slide calculations during click dragging
+    let isDragging = false;
+    let startMouseX = 0;
+    let startMouseY = 0;
 
     const canvas = document.getElementById('mapCanvas');
     const ctx = canvas.getContext('2d');
@@ -313,6 +342,7 @@ def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
     // Initialization lifecycle hook
     window.addEventListener('load', () => {{
         initDashboard();
+        centerMapOnCoordinates(initialCenterLat, initialCenterLon);
         renderCanvasMap();
     }});
 
@@ -400,6 +430,18 @@ def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
         }}
     }}
 
+    // Shift screen translation vectors so target fleet geometry balances right in viewport center axis
+    function centerMapOnCoordinates(lat, lon) {{
+        const normX = (lon + 180) / 360;
+        const normY = (90 - lat) / 180;
+
+        const worldX = normX * canvas.width;
+        const worldY = normY * canvas.height;
+
+        offsetX = (canvas.width / 2) - (worldX * zoomLevel);
+        offsetY = (canvas.height / 2) - (worldY * zoomLevel);
+    }}
+
     // Core Coordinate Projection Geometry Mapping Loop
     function getScreenXY(lat, lon) {{
         // Pure 2D XY plane equation where longitude maps -180 to 180 and latitude maps 90 to -90
@@ -428,7 +470,7 @@ def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
         }});
 
         // Overlap active hovered text right on top to ensure no pixel data truncation occurs
-        if (hoveredPoint) {{
+        if (hoveredPoint && !isDragging) {{
             const pos = getScreenXY(hoveredPoint.lat, hoveredPoint.lon);
             drawTooltip(ctx, hoveredPoint.device_id, pos.x, pos.y);
         }}
@@ -507,7 +549,7 @@ def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
         zoomLevel *= multiplier;
         
         // Safety lock clamp bounds to prevent breaking viewport coordinate projection matrix
-        if (zoomLevel < 0.5) zoomLevel = 0.5;
+        if (zoomLevel < 0.3) zoomLevel = 0.3;
         if (zoomLevel > 50.0) zoomLevel = 50.0;
         
         // Adjust system layout offset variables dynamically so zoom targets center axis viewport
@@ -519,11 +561,42 @@ def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
         renderCanvasMap();
     }}
 
+    // Mouse drag state interaction hooks
+    canvas.addEventListener('mousedown', (e) => {{
+        isDragging = true;
+        const rect = canvas.getBoundingClientRect();
+        startMouseX = e.clientX - rect.left;
+        startMouseY = e.clientY - rect.top;
+    }});
+
+    window.addEventListener('mouseup', () => {{
+        if (isDragging) {{
+            isDragging = false;
+            renderCanvasMap();
+        }}
+    }});
+
     // Tooltip Raycasting Engine Event Listeners
     canvas.addEventListener('mousemove', (event) => {{
         const rect = canvas.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
+        const currentMouseX = event.clientX - rect.left;
+        const currentMouseY = event.clientY - rect.top;
+        
+        if (isDragging) {{
+            // Pull tracking step delta variations
+            const dx = currentMouseX - startMouseX;
+            const dy = currentMouseY - startMouseY;
+            
+            // Apply movement translations directly to map viewport position anchors
+            offsetX += dx;
+            offsetY += dy;
+            
+            startMouseX = currentMouseX;
+            startMouseY = currentMouseY;
+            
+            renderCanvasMap();
+            return;
+        }}
         
         let pointFound = null;
         const hitRadius = 10; // Precision collision trigger range in pixels
@@ -534,8 +607,8 @@ def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
             const pos = getScreenXY(item.lat, item.lon);
             
             // Measure strict distance delta calculations
-            const dx = mouseX - pos.x;
-            const dy = mouseY - pos.y;
+            const dx = currentMouseX - pos.x;
+            const dy = currentMouseY - pos.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance <= hitRadius) {{
@@ -585,4 +658,3 @@ if __name__ == "__main__":
     
     # Compile static single file resource completely decoupled from active streaming loops
     generate_html_output(records)
-
