@@ -18,6 +18,8 @@ Use google Gemini as AI collaborator to implement the python script that generat
 - The first generated code has syntax error, I fixed and continue the test and then the expected output has been shown.
 - I observe that panning feature must be implemented to allow user navigate the map as it zooms.
 - We were able to make the improvement and everything worked so far.
+- Tested the output HTML file to Chrome and Edge browsers.
+
 
 ## Status Colour
 
@@ -35,4 +37,11 @@ Use google Gemini as AI collaborator to implement the python script that generat
 - Utilize AI tools that allow developer and AI to collaborate efficiently throught out the lifecycle of development such as proper versioning.
 
 ---
+
+## Conversation with the AI collaborator
+
+Please copy & paste the URL:
+```
+https://gemini.google.com/share/f45c7fd0b25e
+```
 
