@@ -73,7 +73,7 @@ def read_tracking_csv(file_path):
         
     return parsed_records
 
-def generate_html_output(data_records, output_filename="dashboard.html"):
+def generate_html_output(data_records, output_filename="fleet_dashboard.html"):
     """
     Generates a single, standalone static HTML page pre-baked with the coordinates.
     Overwrites any existing dashboard.html file directly on execution.
